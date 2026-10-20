@@ -700,15 +700,9 @@ async function renderLeaderboard() {
   status.textContent = 'Loading…';
   const req = ++lbRequest;
   try {
-    const scores = await fetchScores(key);
+    const scores = await fetchScores(key, clientId());
     if (req !== lbRequest) return;
-    const me = store.get('submitted', {})[key];
-    let marked = false;
-    scores.forEach((s, idx) => {
-      const isMe = !marked && me && s.name === me.name && s.time_ms === me.timeMs;
-      if (isMe) marked = true;
-      list.appendChild(row(idx + 1, s.name, s.time_ms, s.hints, isMe));
-    });
+    scores.forEach((s, idx) => list.appendChild(row(idx + 1, s.name, s.time_ms, s.hints, s.me)));
     status.textContent = scores.length ? '' : 'No times yet. Be the first!';
     list.querySelector('.me')?.scrollIntoView({ block: 'nearest' });
   } catch {

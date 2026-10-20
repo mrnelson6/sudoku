@@ -1,5 +1,6 @@
-// Bump VERSION whenever you deploy changes so installed apps pick them up.
-const VERSION = 'v1';
+// Files are fetched fresh on every launch, so deploys don't need a version
+// bump. Change VERSION only to clear out old cached files.
+const VERSION = 'v2';
 const CACHE = `sudoku-${VERSION}`;
 const ASSETS = [
   './',
@@ -28,21 +29,23 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Serve the app shell from cache, refreshing it in the background.
-// Cross-origin requests (the leaderboard API) always go to the network.
+// Network first so deploys show up on the next launch; the cache is only used
+// when offline or when the network is too slow to answer.
+// Cross-origin requests (the leaderboard API) are left to the browser.
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET' || new URL(request.url).origin !== self.location.origin) return;
-  event.respondWith(
-    caches.open(CACHE).then(async (cache) => {
-      const cached = await cache.match(request, { ignoreSearch: true });
-      const network = fetch(request)
-        .then((res) => {
-          if (res.ok) cache.put(request, res.clone());
-          return res;
-        })
-        .catch(() => cached);
-      return cached || network;
-    })
-  );
+  event.respondWith((async () => {
+    const cache = await caches.open(CACHE);
+    try {
+      const res = await Promise.race([
+        fetch(request, { cache: 'no-cache' }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000)),
+      ]);
+      if (res.ok) cache.put(request, res.clone());
+      return res;
+    } catch {
+      return (await cache.match(request, { ignoreSearch: true })) || Response.error();
+    }
+  })());
 });

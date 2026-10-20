@@ -1,39 +1,35 @@
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
+import { LEADERBOARD_URL } from './config.js';
 
-export const leaderboardEnabled = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+export const leaderboardEnabled = Boolean(LEADERBOARD_URL);
 
-const headers = () => ({
-  apikey: SUPABASE_ANON_KEY,
-  Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-  'Content-Type': 'application/json',
-});
+// Apps Script web apps answer with a redirect that browsers follow
+// automatically. Posting as text/plain avoids a CORS preflight, which Apps
+// Script doesn't support.
 
-export async function fetchScores(dateKey, limit = 100) {
-  const params = new URLSearchParams({
-    puzzle_date: `eq.${dateKey}`,
-    select: 'name,time_ms,hints,created_at',
-    order: 'time_ms.asc,created_at.asc',
-    limit: String(limit),
-  });
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/daily_scores?${params}`, { headers: headers() });
+export async function fetchScores(dateKey, clientId) {
+  const params = new URLSearchParams({ date: dateKey, client: clientId });
+  const res = await fetch(`${LEADERBOARD_URL}?${params}`);
   if (!res.ok) throw new Error(`Leaderboard request failed (${res.status})`);
-  return res.json();
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data.scores;
 }
 
 // Returns 'ok' or 'duplicate'. Throws on other failures.
 export async function submitScore({ dateKey, name, timeMs, hints, clientId }) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/daily_scores`, {
+  const res = await fetch(LEADERBOARD_URL, {
     method: 'POST',
-    headers: { ...headers(), Prefer: 'return=minimal' },
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify({
-      puzzle_date: dateKey,
+      date: dateKey,
       name,
       time_ms: Math.round(timeMs),
       hints,
       client_id: clientId,
     }),
   });
-  if (res.status === 409) return 'duplicate';
   if (!res.ok) throw new Error(`Could not submit score (${res.status})`);
-  return 'ok';
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data.result;
 }

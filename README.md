@@ -5,7 +5,7 @@ No build step and no dependencies: just static files you can host on GitHub Page
 
 - Unlimited puzzles in four difficulties (Easy, Medium, Hard, Expert), each with a unique solution and graded by the techniques needed to solve it
 - A daily puzzle that is the same for everyone, plus a streak counter
-- An optional online leaderboard for the daily puzzle, backed by Supabase's free tier
+- An optional online leaderboard for the daily puzzle, backed by a Google Sheet
 - Notes, undo, erase, hints, mistake highlighting, auto-save/resume, dark mode, and offline play
 
 ## Run locally
@@ -26,22 +26,28 @@ To install it as an app:
 - **iPhone/iPad (Safari):** Share → Add to Home Screen.
 - **Android (Chrome):** use the "Install" button on the home screen, or ⋮ → Install app.
 
-After deploying changes, bump `VERSION` in `sw.js`. Installed apps then fetch the new files.
+Pushing to `main` updates the site within about a minute. Installed apps pick up the change the next time they're opened while online. Saved games and stats carry over.
 
 ## Enable the daily leaderboard (optional)
 
-GitHub Pages only serves static files, so the leaderboard needs a small hosted database.
-Everything else works without one, and the leaderboard sheet shows your own history until you set this up.
+GitHub Pages only serves static files, so scores are stored in a Google Sheet through a small Apps Script web app. It's free and doesn't go to sleep.
+Everything else works without it, and the leaderboard sheet shows your own history until you set it up.
 
-1. Create a free project at https://supabase.com.
-2. Open **SQL Editor**, paste the contents of `supabase.sql`, and run it.
-3. Open **Project Settings → API** and copy the **Project URL** and the **anon public** key into `js/config.js`.
-4. Commit and push.
+1. Create a new Google Sheet, for example "Sudoku leaderboard".
+2. Open **Extensions → Apps Script**, replace the starter code with the contents of `apps-script/Code.gs`, and save.
+3. Click **Deploy → New deployment**, choose the type **Web app**, and set:
+   - **Execute as:** Me
+   - **Who has access:** Anyone
+4. Click **Deploy** and approve the permissions prompt. Google warns that the app is unverified because you wrote it yourself: choose **Advanced → Go to (project name)**.
+5. Copy the **Web app URL** (it ends in `/exec`) into `LEADERBOARD_URL` in `js/config.js`, then commit and push.
 
-The anon key is meant to be public. Row-level security only allows reading scores and inserting one score per device per day, and only for today's date.
+Scores appear in a `scores` tab, which is created automatically on the first submission. To remove a score, delete its row.
 
-**Cheating:** times are measured in the browser, so a determined player could submit a fake time.
-For a casual leaderboard among friends, this is usually fine.
+If you edit the script later, go to **Deploy → Manage deployments → ✏️ → Version: New version**. This keeps the same URL. A *new* deployment gets a different URL.
+
+**Players:** there are no accounts. Each device gets a random ID stored in the browser, which allows one score per device per day and highlights your own row. The ID is never shown to other players. The home-screen app and Safari keep separate storage, so they count as two devices.
+
+**Cheating:** times are measured in the browser, so a determined player could submit a fake time. The server rejects times under 15 seconds and dates other than today. Beyond that, it trusts the players, which is fine for friendly competition.
 
 ## Notes
 
