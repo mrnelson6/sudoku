@@ -6,6 +6,18 @@ export const leaderboardEnabled = Boolean(LEADERBOARD_URL);
 // automatically. Posting as text/plain avoids a CORS preflight, which Apps
 // Script doesn't support.
 
+async function post(body) {
+  const res = await fetch(LEADERBOARD_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`Leaderboard request failed (${res.status})`);
+  const data = await res.json();
+  if (data.error) throw Object.assign(new Error(data.error), { rejected: true });
+  return data.result;
+}
+
 export async function fetchScores(dateKey, clientId) {
   const params = new URLSearchParams({ date: dateKey, client: clientId });
   const res = await fetch(`${LEADERBOARD_URL}?${params}`);
@@ -16,20 +28,10 @@ export async function fetchScores(dateKey, clientId) {
 }
 
 // Returns 'ok' or 'duplicate'. Throws on other failures.
-export async function submitScore({ dateKey, name, timeMs, hints, clientId }) {
-  const res = await fetch(LEADERBOARD_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({
-      date: dateKey,
-      name,
-      time_ms: Math.round(timeMs),
-      hints,
-      client_id: clientId,
-    }),
-  });
-  if (!res.ok) throw new Error(`Could not submit score (${res.status})`);
-  const data = await res.json();
-  if (data.error) throw new Error(data.error);
-  return data.result;
+export function submitScore({ dateKey, name, timeMs, hints, clientId }) {
+  return post({ date: dateKey, name, time_ms: Math.round(timeMs), hints, client_id: clientId });
+}
+
+export function setName({ name, clientId }) {
+  return post({ action: 'name', name, client_id: clientId });
 }

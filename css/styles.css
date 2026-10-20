@@ -512,7 +512,11 @@ dialog[open] .sheet { animation: rise 0.22s cubic-bezier(0.2, 0.9, 0.3, 1); }
 .submit-form { display: flex; flex-direction: column; gap: 8px; }
 .submit-form label { font-weight: 600; font-size: 0.95rem; }
 .input-row { display: flex; gap: 8px; }
-.input-row input {
+.name-setting { display: flex; flex-direction: column; gap: 8px; font-weight: 500; }
+#win-post:empty { display: none; }
+#win-post { margin: -4px 0 0; }
+
+.input-row input, .name-setting input {
   flex: 1;
   min-width: 0;
   height: 48px;

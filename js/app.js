@@ -1,5 +1,5 @@
 import { generate, generateDaily, dailyDifficulty, DIFFICULTIES, PEERS, ROW, COL, BOX } from './sudoku.js';
-import { leaderboardEnabled, fetchScores, submitScore } from './leaderboard.js';
+import { leaderboardEnabled, fetchScores, submitScore, setName } from './leaderboard.js';
 import { HINT_PENALTY_SECONDS } from './config.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -438,8 +438,14 @@ function checkWin() {
     game.isBest = isBest && s.won > 1;
   } else {
     const history = store.get('dailyHistory', {});
-    history[game.date] = { timeMs: time, hints: game.hints, finalMs: time + game.hints * HINT_PENALTY_SECONDS * 1000 };
+    const entry = { timeMs: time, hints: game.hints, finalMs: time + game.hints * HINT_PENALTY_SECONDS * 1000 };
+    history[game.date] = entry;
     store.set('dailyHistory', history);
+    if (leaderboardEnabled && game.date === dateKey()) {
+      const pending = store.get('pendingScores', {});
+      pending[game.date] = entry;
+      store.set('pendingScores', pending);
+    }
     saveGame();
   }
 
@@ -462,11 +468,11 @@ function showWin() {
   $('#win-note').textContent = note;
 
   const isDaily = g.mode === 'daily';
-  const submitted = store.get('submitted', {})[g.date];
-  const form = $('#submit-form');
-  form.hidden = !(isDaily && leaderboardEnabled && !submitted && g.date === dateKey());
-  $('#name-input').value = store.get('name', '');
-  $('#submit-btn').disabled = false;
+  const pending = isDaily && store.get('pendingScores', {})[g.date];
+  const name = store.get('name', '');
+  $('#submit-form').hidden = !(pending && !name);
+  $('#win-post').textContent = '';
+  if (pending && name) postScores();
 
   $('#win-share').hidden = !isDaily;
   $('#win-primary').textContent = isDaily ? 'View leaderboard' : 'New game';
@@ -478,31 +484,63 @@ function showWin() {
   $('#win-dialog').showModal();
 }
 
-$('#submit-form').addEventListener('submit', async (e) => {
+$('#submit-form').addEventListener('submit', (e) => {
   e.preventDefault();
-  const name = $('#name-input').value.trim().slice(0, 20);
+  const name = cleanName($('#name-input').value);
   if (!name) return;
   store.set('name', name);
-  const btn = $('#submit-btn');
-  btn.disabled = true;
-  btn.textContent = 'Sending…';
-  const entry = store.get('dailyHistory', {})[game.date];
-  try {
-    const result = await submitScore({
-      dateKey: game.date, name, timeMs: entry.finalMs, hints: entry.hints, clientId: clientId(),
-    });
-    const submitted = store.get('submitted', {});
-    submitted[game.date] = { name, timeMs: Math.round(entry.finalMs) };
-    store.set('submitted', submitted);
-    toast(result === 'duplicate' ? 'You already submitted today' : 'Time submitted!');
-    $('#submit-form').hidden = true;
-  } catch (err) {
-    toast('Could not submit. Check your connection.');
-    btn.disabled = false;
-  } finally {
-    btn.textContent = 'Submit';
-  }
+  $('#submit-form').hidden = true;
+  postScores();
 });
+
+// ---------- Leaderboard sync ----------
+// Daily results are queued in 'pendingScores' and sent once the player has a
+// name. Anything that fails because of the network is retried on the next
+// launch or when the device comes back online.
+
+function cleanName(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, 20);
+}
+
+let syncing = null;
+
+function syncLeaderboard() {
+  if (!leaderboardEnabled || !navigator.onLine) return Promise.resolve();
+  syncing ||= (async () => {
+    const name = store.get('name', '');
+    if (!name) return;
+    if (store.get('nameSynced', '') !== name) {
+      try {
+        await setName({ name, clientId: clientId() });
+        store.set('nameSynced', name);
+      } catch { /* retry later */ }
+    }
+    const pending = store.get('pendingScores', {});
+    for (const [date, entry] of Object.entries(pending)) {
+      try {
+        await submitScore({ dateKey: date, name, timeMs: entry.finalMs, hints: entry.hints, clientId: clientId() });
+      } catch (err) {
+        if (!err.rejected) continue; // offline or server hiccup: keep it for later
+        // Rejected by the server (e.g. too old): drop it.
+      }
+      delete pending[date];
+      store.set('pendingScores', pending);
+    }
+  })().finally(() => { syncing = null; });
+  return syncing;
+}
+
+async function postScores() {
+  const status = $('#win-post');
+  status.textContent = 'Posting to the leaderboard…';
+  await syncLeaderboard();
+  const stillPending = store.get('pendingScores', {})[game.date];
+  status.textContent = stillPending
+    ? "You're offline. Your time will be posted when you reconnect."
+    : `Posted to today's leaderboard as ${store.get('name', '')}`;
+}
+
+window.addEventListener('online', syncLeaderboard);
 
 $('#win-share').addEventListener('click', async () => {
   const entry = store.get('dailyHistory', {})[game.date];
@@ -753,6 +791,7 @@ function saveSettings() {
 
 $('#settings-btn').addEventListener('click', () => {
   document.querySelectorAll('[data-setting]').forEach((input) => { input.checked = settings[input.dataset.setting]; });
+  $('#profile-name').value = store.get('name', '');
   const stats = store.get('stats', {});
   const won = Object.values(stats).reduce((n, s) => n + (s.won || 0), 0);
   const dailies = Object.keys(store.get('dailyHistory', {})).length;
@@ -767,6 +806,18 @@ document.querySelectorAll('[data-setting]').forEach((input) => {
     render();
   });
 });
+
+$('#profile-name').addEventListener('change', async (e) => {
+  const name = cleanName(e.target.value);
+  e.target.value = name;
+  if (!name || name === store.get('name', '')) return;
+  store.set('name', name);
+  if (!leaderboardEnabled) return;
+  await syncLeaderboard();
+  if (store.get('nameSynced', '') !== name) await syncLeaderboard(); // a sync was already running
+  toast(store.get('nameSynced', '') === name ? 'Name updated' : 'Name saved. It will sync when you reconnect.');
+});
+$('#profile-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') e.target.blur(); });
 
 document.querySelectorAll('#theme-select button').forEach((btn) => {
   btn.addEventListener('click', () => {
@@ -837,6 +888,7 @@ buildBoard();
 applyTheme();
 renderHome();
 maybeShowInstall();
+syncLeaderboard();
 history.replaceState({ view: 'home' }, '');
 
 // Refresh the daily card if the app is left open past midnight.

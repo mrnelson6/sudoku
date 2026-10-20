@@ -41,11 +41,13 @@ Everything else works without it, and the leaderboard sheet shows your own histo
 4. Click **Deploy** and approve the permissions prompt. Google warns that the app is unverified because you wrote it yourself: choose **Advanced → Go to (project name)**.
 5. Copy the **Web app URL** (it ends in `/exec`) into `LEADERBOARD_URL` in `js/config.js`, then commit and push.
 
-Scores appear in a `scores` tab, which is created automatically on the first submission. To remove a score, delete its row.
+Two tabs are created automatically: `scores`, with one row per daily result, and `players`, with each device's current name. To remove a score, delete its row in `scores`. To rename someone, edit their name in `players`.
 
 If you edit the script later, go to **Deploy → Manage deployments → ✏️ → Version: New version**. This keeps the same URL. A *new* deployment gets a different URL.
 
 **Players:** there are no accounts. Each device gets a random ID stored in the browser, which allows one score per device per day and highlights your own row. The ID is never shown to other players. The home-screen app and Safari keep separate storage, so they count as two devices.
+
+**Names:** players are asked for a name the first time they finish a daily puzzle, and can change it later under Settings → Your name. After that, daily times post automatically. The leaderboard always shows each player's current name, so renaming also updates past days. A result finished offline is saved and posted when the device is back online.
 
 **Cheating:** times are measured in the browser, so a determined player could submit a fake time. The server rejects times under 15 seconds and dates other than today. Beyond that, it trusts the players, which is fine for friendly competition.
 

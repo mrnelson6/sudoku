@@ -136,12 +136,14 @@
       </div>
       <p class="muted center" id="win-note"></p>
       <form class="submit-form" id="submit-form" hidden>
-        <label for="name-input">Add your time to today's leaderboard</label>
+        <label for="name-input">Pick a name for the leaderboard</label>
         <div class="input-row">
           <input id="name-input" maxlength="20" placeholder="Your name" autocomplete="nickname" enterkeyhint="send" required>
-          <button class="btn primary" type="submit" id="submit-btn">Submit</button>
+          <button class="btn primary" type="submit" id="submit-btn">Post</button>
         </div>
+        <small class="muted">You can change it later in Settings.</small>
       </form>
+      <p class="muted center small" id="win-post"></p>
       <div class="btn-stack">
         <button class="btn primary" id="win-primary"></button>
         <button class="btn" id="win-share" hidden>Share result</button>
@@ -182,6 +184,10 @@
         <button class="icon-btn" data-close aria-label="Close">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
         </button>
+      </div>
+      <div class="name-setting">
+        <label for="profile-name">Your name</label>
+        <input id="profile-name" maxlength="20" placeholder="Shown on the leaderboard" autocomplete="nickname" enterkeyhint="done">
       </div>
       <label class="toggle"><span>Show mistakes</span><input type="checkbox" data-setting="checkMistakes"><i></i></label>
       <label class="toggle"><span>Highlight matching numbers</span><input type="checkbox" data-setting="highlightSame"><i></i></label>
