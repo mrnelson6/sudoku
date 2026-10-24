@@ -209,9 +209,9 @@ export function rate(puzzle) {
 // ---- Generator ------------------------------------------------------------
 
 export const DIFFICULTIES = {
-  easy:   { label: 'Easy',   clues: 38, levels: [1] },
-  medium: { label: 'Medium', clues: 31, levels: [1, 2] },
-  hard:   { label: 'Hard',   clues: 26, levels: [2] },
+  easy:   { label: 'Easy',   clues: 42, levels: [1] },
+  medium: { label: 'Medium', clues: 34, levels: [1, 2] },
+  hard:   { label: 'Hard',   clues: 29, levels: [2] },
   expert: { label: 'Expert', clues: 0,  levels: [3] },
 };
 
@@ -234,8 +234,7 @@ function carve(solution, targetClues, rng) {
   return puzzle;
 }
 
-export function generate(difficulty, seed) {
-  const spec = DIFFICULTIES[difficulty];
+export function generate(difficulty, seed, spec = DIFFICULTIES[difficulty]) {
   const rng = mulberry32(seed);
   let fallback = null;
   for (let attempt = 0; attempt < 40; attempt++) {
@@ -251,12 +250,23 @@ export function generate(difficulty, seed) {
   return fallback;
 }
 
+// The daily switched to always-medium (with the easier clue counts) on this
+// date. Earlier dates keep their original schedule and clue counts so a puzzle
+// already in play doesn't change under anyone.
+const DAILY_MEDIUM_FROM = '2026-10-25';
+const LEGACY_CLUES = { easy: 38, medium: 31, hard: 26, expert: 0 };
+
 export function dailyDifficulty(dateKey) {
+  if (dateKey >= DAILY_MEDIUM_FROM) return 'medium';
   // Gentle start to the week, toughest at the weekend.
   const day = new Date(dateKey + 'T12:00:00').getDay();
   return ['expert', 'easy', 'medium', 'medium', 'hard', 'hard', 'expert'][day];
 }
 
 export function generateDaily(dateKey) {
-  return generate(dailyDifficulty(dateKey), hashString('daily:' + dateKey));
+  const difficulty = dailyDifficulty(dateKey);
+  const spec = dateKey >= DAILY_MEDIUM_FROM
+    ? DIFFICULTIES[difficulty]
+    : { ...DIFFICULTIES[difficulty], clues: LEGACY_CLUES[difficulty] };
+  return generate(difficulty, hashString('daily:' + dateKey), spec);
 }
